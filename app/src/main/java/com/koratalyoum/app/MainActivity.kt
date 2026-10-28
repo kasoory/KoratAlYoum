@@ -17,6 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -30,7 +33,7 @@ private val Gold = Color(0xFFD8B979)
 private val Muted = Color(0xFFA7B5B0)
 private val White = Color(0xFFF5F6F2)
 
-data class Fixture(val id:Int,val league:String,val home:String,val away:String,val homeGoals:String,val awayGoals:String,val status:String)
+data class Fixture(val id:Int,val league:String,val home:String,val away:String,val homeGoals:String,val awayGoals:String,val status:String,val leagueId:Int,val homeLogo:String,val awayLogo:String,val country:String)
 
 class MainActivity: ComponentActivity() {
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
@@ -62,7 +65,7 @@ class MainActivity: ComponentActivity() {
        if(response!=null)for(i in 0 until response.length()){
         val o=response.getJSONObject(i);val league=o.getJSONObject("league");val teams=o.getJSONObject("teams");val goals=o.getJSONObject("goals");val fixture=o.getJSONObject("fixture")
         val status=fixture.getJSONObject("status").optString("short")
-        result.add(Fixture(fixture.optInt("id"),league.optString("name"),teams.getJSONObject("home").optString("name"),teams.getJSONObject("away").optString("name"),goals.optString("home","–").replace("null","–"),goals.optString("away","–").replace("null","–"),status))
+        result.add(Fixture(fixture.optInt("id"),league.optString("name"),teams.getJSONObject("home").optString("name"),teams.getJSONObject("away").optString("name"),goals.optString("home","–").replace("null","–"),goals.optString("away","–").replace("null","–"),status,league.optInt("id"),teams.getJSONObject("home").optString("logo"),teams.getJSONObject("away").optString("logo"),league.optString("country")))
        }
        runOnUiThread{fixtures=result}
       }
@@ -84,9 +87,9 @@ class MainActivity: ComponentActivity() {
    }
    LaunchedEffect(key,dateOffset){if(key.isNotBlank())load()}
    Column(Modifier.fillMaxSize().background(Ink).padding(18.dp)){
-    Text("KORA  ✦  LUXURY",fontSize=27.sp,fontWeight=FontWeight.Black,color=Gold)
-    Text("كورة اليوم  •  تجربة كروية مختلفة",color=Muted,fontSize=12.sp)
-    Spacer(Modifier.height(22.dp))
+    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column {Text("KORA  ✦  LUXURY",fontSize=26.sp,fontWeight=FontWeight.Black,color=Gold);Text("THE BEAUTIFUL GAME",fontSize=10.sp,color=Muted,letterSpacing=2.sp)};Text("⚽",fontSize=28.sp)}
+    Text("كورة اليوم  •  تغطية المباريات حول العالم",color=Muted,fontSize=12.sp)
+    Spacer(Modifier.height(15.dp))
     if(selected!=null){
      TextButton(onClick={selected=null}){Text("‹  العودة للمباريات",color=Gold)}
      Text("${selected!!.home}  ${selected!!.homeGoals} : ${selected!!.awayGoals}  ${selected!!.away}",color=White,fontSize=20.sp,fontWeight=FontWeight.Bold)
@@ -140,17 +143,39 @@ class MainActivity: ComponentActivity() {
      Spacer(Modifier.height(12.dp))
      if(loading)CircularProgressIndicator(color=Gold)
      if(error.isNotBlank())Text(error,color=Color(0xFFFF8A80))
-     val visible=fixtures.filter { f->when(section){"مباشر"->f.status in listOf("1H","2H","HT","ET","P","BT","INT");"الأهلي"->f.home.contains("Ahli",true)||f.away.contains("Ahli",true)||f.home.contains("الأهلي")||f.away.contains("الأهلي");else->true} }
+     val important=setOf(307,39,140,135,78,61,2,3,848,17,4,203,262,94,88,45,48,143,137,15,253,71,128)
+     val visible=fixtures.filter { f->when(section){"مباشر"->f.status in listOf("1H","2H","HT","ET","P","BT","INT");"الأهلي"->f.home.contains("Ahli",true)||f.away.contains("Ahli",true)||f.home.contains("الأهلي")||f.away.contains("الأهلي");else->f.leagueId in important} }.sortedWith(compareBy<Fixture> { if(it.leagueId==307)0 else if(it.leagueId==2)1 else if(it.leagueId==39)2 else if(it.leagueId==140)3 else if(it.leagueId==135)4 else 5 }.thenBy{it.league})
      LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){
       items(visible){f->
-       Column(Modifier.fillMaxWidth().background(Surface,RoundedCornerShape(18.dp)).clickable{openMatch(f)}.padding(17.dp)){
-        Text(f.league,color=Gold,fontSize=12.sp)
-        Spacer(Modifier.height(8.dp))
-        Text("${f.home}    ${f.homeGoals} : ${f.awayGoals}    ${f.away}",color=White,fontSize=16.sp,fontWeight=FontWeight.Bold)
-        Text("${f.status}  •  التشكيلات والإحصائيات ←",color=Muted,fontSize=12.sp)
+       Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Surface).border(1.dp,Color(0xFF34443B),RoundedCornerShape(22.dp)).clickable{openMatch(f)}.padding(16.dp)){
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){
+         Text("✦  "+f.league,color=Gold,fontSize=12.sp,fontWeight=FontWeight.SemiBold)
+         Text(if(f.status in listOf("1H","2H","HT","ET"))"● LIVE" else if(f.status=="FT")"انتهت" else "قادمة",color=if(f.status in listOf("1H","2H","HT","ET"))Color(0xFFFF6C6C) else Muted,fontSize=11.sp)
+        }
+        Spacer(Modifier.height(15.dp))
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){
+         Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally){
+          AsyncImage(model=f.homeLogo,contentDescription=f.home,modifier=Modifier.size(48.dp),contentScale=ContentScale.Fit)
+          Spacer(Modifier.height(6.dp))
+          Text(f.home,color=White,fontSize=12.sp,fontWeight=FontWeight.SemiBold,textAlign=TextAlign.Center,maxLines=2)
+         }
+         Column(horizontalAlignment=Alignment.CenterHorizontally){
+          Text("${f.homeGoals}   :   ${f.awayGoals}",color=White,fontSize=28.sp,fontWeight=FontWeight.Black)
+          Text(if(f.status=="NS")"VS" else f.status,color=Gold,fontSize=11.sp)
+         }
+         Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally){
+          AsyncImage(model=f.awayLogo,contentDescription=f.away,modifier=Modifier.size(48.dp),contentScale=ContentScale.Fit)
+          Spacer(Modifier.height(6.dp))
+          Text(f.away,color=White,fontSize=12.sp,fontWeight=FontWeight.SemiBold,textAlign=TextAlign.Center,maxLines=2)
+         }
+        }
+        Spacer(Modifier.height(14.dp))
+        HorizontalDivider(color=Color(0xFF34443B))
+        Spacer(Modifier.height(9.dp))
+        Text("التشكيلة   •   الأحداث   •   الإحصائيات      ←",color=Muted,fontSize=11.sp)
        }
       }
-      if(!loading&&visible.isEmpty())item{Text("لا توجد مباريات متاحة في هذا القسم.",color=Muted)}
+      if(!loading&&visible.isEmpty())item{Text("لا توجد مباريات من البطولات المختارة اليوم. جرّب تاريخًا آخر.",color=Muted)}
      }
     }
    }
